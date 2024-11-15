@@ -22,8 +22,8 @@ FOREIGN KEY (product_id) REFERENCES product_dim_table (product_id) \
 FOREIGN KEY (date_id) REFERENCES date_dim_table (date_id) \
 );"
 
-create_product_dim_table = "CREATE TABLE IF NOT EXISTS product_dim_table \
-product_id SERIAL PRIMARY KEY, \
+create_product_dim_table = "CREATE TABLE IF NOT EXISTS product_dim_table( \
+product_id INT PRIMARY KEY, \
 product_name VARCHAR(255), \
 brand_name VARCHAR(255), \
 short_description TEXT, \
@@ -32,7 +32,7 @@ return_policy VARCHAR(255), \
 url_img TEXT);"
 
 create_date_dim_table = "CREATE TABLE IF NOT EXISTS date_dim_table \
-date_id SERIAL PRIMARY KEY, \
+(date_id SERIAL PRIMARY KEY, \
 date DATE NOT NULL, \
 day INT, \
 month INT, \

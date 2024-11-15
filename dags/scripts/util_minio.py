@@ -30,5 +30,5 @@ class MinioHandler:
         except Exception as e:
             print(f"Error uploading file to bucket: {str(e)}")
             return None
-
+    
     
