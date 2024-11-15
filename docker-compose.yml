@@ -5,20 +5,6 @@ x-common: &airflow-common
     dockerfile: Dockerfile
 
 services:
-  db:
-    image: postgres:16
-    container_name: af_pg
-    environment:
-      POSTGRES_USER: postgres_db
-      POSTGRES_PASSWORD: tungnei12345
-      POSTGRES_DB: af_db
-    volumes:
-      - af-db-volume:/var/lib/postgresql/data
-    ports:
-      - "55432:5432"
-    networks:
-      - af_network
-
   airflow-webserver:
     <<: *airflow-common
     volumes:
@@ -48,24 +34,24 @@ services:
     networks:
       - af_network
 
-  pg-tiki:  # For storing TIKI's data
-    image: postgres:16
-    container_name: pg-tiki
+  # For storing TIKI's data
+  postgres-db:
+    image: postgres:latest  # sử dụng phiên bản PostgreSQL mới nhất
+    container_name: postgres_container
     environment:
-      POSTGRES_DB: dw_tiki
-      POSTGRES_USER: postgres_wh
-      POSTGRES_PASSWORD: tungnei12345
+      POSTGRES_USER: myuser         # tên người dùng cho PostgreSQL
+      POSTGRES_PASSWORD: mypassword # mật khẩu cho PostgreSQL
+      POSTGRES_DB: mydatabase       # tên database mặc định khi khởi tạo
     ports:
-      - "45432:5432"
+      - "5432:5432"  # mở cổng để có thể kết nối từ bên ngoài
     volumes:
-      - af-pg-tiki-volume:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data  # lưu trữ dữ liệu để không mất khi khởi động lại container
     networks:
       - af_network
     
 volumes:
-  af-db-volume:
+  postgres_data:
   af-minio-volume:
-  af-pg-tiki-volume:
   airflow.cfg:
 
 networks:

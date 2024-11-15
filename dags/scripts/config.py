@@ -7,10 +7,38 @@ file_dir = f'/opt/airflow/data_crawl/data_product_{current_time}.csv'
 output_file = f'data_product_{current_time}.csv'### output file name when to crawl data
 output_dir = '/opt/airflow/data_crawl'### output file path when to crawl data
 
-create_sales_fact_table = ""
-create_product_dim_table = ""
-create_brand_dim_table = ""
-create_brand_dim_table = ""
+create_sales_fact_table = "CREATE TABLE IF NOT EXISTS sales_fact_table \
+(id SERIAL PRIMARY KEY, \
+product_id INT NOT NULL, \
+date_id INT NOT NULL, \
+price_after_voucher DECIMAL(10,2), \
+original_price DECIMAL(10,2), \
+discount_rate DECIMAL(10,2), \
+discount_price DECIMAL(10,2), \
+quantity_sold INT, \
+rating_average DECIMAL(10,2), \
+review_count INT, \
+FOREIGN KEY (product_id) REFERENCES product_dim_table (product_id) \
+FOREIGN KEY (date_id) REFERENCES date_dim_table (date_id) \
+);"
+
+create_product_dim_table = "CREATE TABLE IF NOT EXISTS product_dim_table \
+product_id SERIAL PRIMARY KEY, \
+product_name VARCHAR(255), \
+brand_name VARCHAR(255), \
+short_description TEXT, \
+warranty_info VARCHAR(255), \
+return_policy VARCHAR(255), \
+url_img TEXT);"
+
+create_date_dim_table = "CREATE TABLE IF NOT EXISTS date_dim_table \
+date_id SERIAL PRIMARY KEY, \
+date DATE NOT NULL, \
+day INT, \
+month INT, \
+year INT, \
+quarter INT );"
+
 
 
 
