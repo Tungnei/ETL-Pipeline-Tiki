@@ -9,7 +9,7 @@ import pandas as pd
 
 with DAG(
     dag_id='etl_process_toPostgres',
-    start_date=datetime(2024, 11, 15),  # Thời gian bắt đầu theo giờ Việt Nam
+    start_date=datetime(2024, 11, 14),  # Thời gian bắt đầu theo giờ Việt Nam
     catchup=False,
     schedule_interval='@daily',  # Chạy hàng ngày vào lúc 8:00 theo giờ Việt Nam
 ) as dag:
@@ -21,18 +21,21 @@ with DAG(
             if filename.startswith('data_product') and filename.endswith('.csv'):
                 file_path = os.path.join(output_dir, filename)
                 if filename not in processed_file:
+
                     ## extract and transform data
                     etl = ETLProcess()
                     try:
-                        df_et = etl.transform_data(file_path)
+                        etl.df = None
+                        etl.transform_data(file_path)
                         print(f"Transformed data for file {filename}")
+
                     except Exception as e:
                         print(f"Failed to transform data for file {filename}")
                     
                     
                     ## load data to postgres
                     try:
-                        etl.load_date_dim_table(df_et)
+                        etl.load_date_dim_table()
                         print(f"Loaded date_dim_table for file {filename}")
                     except Exception as e:
                         print(f"Failed to load date_dim_table for file {filename}")
@@ -40,17 +43,17 @@ with DAG(
 
 
                     try:
-                        etl.load_sales_fact_table(df_et)
-                        print(f"Loaded sales_fact_table for file {filename}")
-                    except Exception as e:
-                        print(f"Failed to load sales_fact_table for file {filename}")
-                    try:
-                        etl.load_product_dim_table(df_et)
+                        etl.load_product_dim_table()
                         print(f"Loaded product_dim_table for file {filename}")
                     except Exception as e:
                         print(f"Failed to load product_dim_table for file {filename}")
                     
                     
+                    try:
+                        etl.load_sales_fact_table()
+                        print(f"Loaded sales_fact_table for file {filename}")
+                    except Exception as e:
+                        print(f"Failed to load sales_fact_table for file {filename}")
                     print(f"Processed file {filename}")
                     
                     processed_file.append(filename)

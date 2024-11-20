@@ -35,17 +35,17 @@ services:
       - af_network
 
   # For storing TIKI's data
-  postgres-db:
+  postgres-db2:
     image: postgres:latest  # sử dụng phiên bản PostgreSQL mới nhất
     container_name: postgres_container
     environment:
       POSTGRES_USER: myuser         # tên người dùng cho PostgreSQL
       POSTGRES_PASSWORD: mypassword # mật khẩu cho PostgreSQL
-      POSTGRES_DB: mydatabase       # tên database mặc định khi khởi tạo
+      POSTGRES_DB: mydatabase2       # tên database mặc định khi khởi tạo
     ports:
       - "5432:5432"  # mở cổng để có thể kết nối từ bên ngoài
     volumes:
-      - postgres_data:/var/lib/postgresql/data  # lưu trữ dữ liệu để không mất khi khởi động lại container
+      - postgres_data:/var/lib/postgresql/data2  # lưu trữ dữ liệu để không mất khi khởi động lại container
     networks:
       - af_network
     
