@@ -3,13 +3,25 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
-import ollama
+import requests
 import google.generativeai as genai
 from cachetools import cached, TTLCache
-
+import joblib
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import classification_report
+from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, roc_auc_score
+from statsmodels.tsa.arima.model import ARIMA
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from datetime import timedelta
+from sklearn.linear_model import LinearRegression
+import webbrowser
+
 # path = 'D:\Source_project\ETL_Pipeline_Tiki\data_crawl'
 # files = os.listdir(path)
 # files_list = [os.path.join(path, file) for file in files if file.endswith('.csv')]
@@ -29,25 +41,28 @@ from sklearn.metrics import accuracy_score, roc_auc_score
 
 
 # Mã nhúng Power BI (iframe)
-powerbi_embed_code = '''
-    <iframe 
-        title="DashBoard-Tiki"
-        center="true" 
-        width="1140" 
-        height="541.25" 
-        src="https://app.powerbi.com/reportEmbed?reportId=8d3b50e1-ff3e-4449-b210-e688c20d0180&autoAuth=true&ctid=e7572e92-7aee-4713-a3c4-ba64888ad45f" 
-        frameborder="0" 
-        allowFullScreen="true">
-    </iframe>
-'''
+# powerbi_embed_code = '''
+#    <iframe title="DashBoard-Tiki"
+#         width="100%" 
+#         height="100%" 
+#         src="https://app.powerbi.com/reportEmbed?reportId=8d3b50e1-ff3e-4449-b210-e688c20d0180&autoAuth=true&ctid=e7572e92-7aee-4713-a3c4-ba64888ad45f" 
+#         frameborder="0" 
+#         allowFullScreen="true" 
+#         style="display:block; width: 100%; height: 100%; border: none;">
+# </iframe>
 
+# '''
 # Thiết lập lựa chọn trang với radio button
-page = st.sidebar.selectbox("Lựa chọn hiển thị", ["Dashboard Tiki", "Random Forest Model","Chatbot"])
+page = st.sidebar.selectbox("Lựa chọn hiển thị", ["Dashboard Tiki", "Random Forest Model","KNN","Linear  Regression","ARIMA","Chatbot"])
 
+FASTAPI_URL = "http://127.0.0.1:8000/dashboard"
+response = requests.get(FASTAPI_URL)
+# Điều hướng tới trang Dashboard nếu chọn "Dashboard Tiki"
 if page == "Dashboard Tiki":
-    # Trang 1: Hiển thị Dashboard Power BI
-    st.markdown(powerbi_embed_code, unsafe_allow_html=True)
-   
+    if response.status_code == 200:
+    # Hiển thị nội dung HTML trong Streamlit
+        webbrowser.open("http://127.0.0.1:8000/dashboard")
+        st.write("Redirecting to the dashboard...")
 elif page == "Random Forest Model":
     # Trang 2: Hiển thị kết quả mô hình ML
     st.write("### Kết quả đánh giá mô hình Random Forest")
@@ -260,4 +275,172 @@ elif page == "Chatbot":
         main()
 
 
+elif page == "KNN":
+  
+    model_knn = 'D:\Source_project\ETL_Pipeline_Tiki\model\knn_final_model2.pkl'
+    model = joblib.load(model_knn)
 
+    #  sacler.pkl
+    st.title('Dự đoán phân khúc sản phẩm')
+
+    rating_average = st.number_input('Đánh giá trung bình', min_value=0.0, max_value=5.0, value=4.0, step=0.1)
+    price_after_voucher = st.number_input('Giá sau voucher (VND)', min_value=0, value=3000000)
+    review_count = st.number_input('Số lượng đánh giá', min_value=0, value=100)
+    quantity_sold = st.number_input('Số lượng bán', min_value=0, value=500)
+    discount_rate = st.number_input('Tỷ lệ giảm giá(%)', min_value=0, max_value=80, value=1, step=1)
+
+    if st.button('Dự đoán'):
+        new_data = pd.DataFrame({
+        'rating_average': [rating_average],
+        'price_after_voucher': [price_after_voucher],
+        'review_count': [review_count],
+        'quantity_sold': [quantity_sold],
+        'discount_rate': [discount_rate]
+         })
+
+    #  chuẩn hóa dữ liệu
+        scaler = StandardScaler()
+        new_data_scaled = scaler.fit_transform(new_data)
+
+        prediction = model.predict(new_data_scaled)
+        st.subheader(f'Kết quả Phân loại sản phẩm: {prediction[0]}')
+
+elif page == "ARIMA":
+   
+
+    # Bước 1: Tải dữ liệu sản phẩm
+    df_clean = pd.read_csv('D:/Source_project/ETL_Pipeline_Tiki/output.csv')  # Đường dẫn tới file CSV
+    df_clean['date'] = pd.to_datetime(df_clean['date'])
+    df_clean.sort_values('date', inplace=True)
+
+    # Bước 2: Giao diện người dùng
+    st.title('Dự báo giá sản phẩm theo thời gian (đơn vị: triệu đồng)')
+
+    # Lựa chọn sản phẩm từ dữ liệu
+    product_choices = df_clean['product_name'].unique()  # Giả sử cột 'product_name' chứa tên sản phẩm
+    selected_product = st.selectbox('Chọn sản phẩm', product_choices)
+
+    # Bước 3: Lọc dữ liệu của sản phẩm đã chọn
+    product_data = df_clean[df_clean['product_name'] == selected_product]
+
+    # Hiển thị thông tin sản phẩm
+    st.write(f"Thông tin sản phẩm: {selected_product}")
+    st.write(product_data.tail())
+
+    # Bước 4: Tạo mô hình ARIMA cho giá sản phẩm
+    price_data = product_data[['date', 'price_after_voucher']]
+    price_data.set_index('date', inplace=True)
+
+    # Chuyển đổi giá sang đơn vị "triệu đồng"
+    price_data['price_after_voucher'] = price_data['price_after_voucher'] / 1_000_000
+
+    # Xây dựng mô hình ARIMA (p=1, d=1, q=1 là tham số mẫu, bạn có thể tinh chỉnh)
+    model = ARIMA(price_data['price_after_voucher'], order=(1, 1, 1))
+    model_fit = model.fit()
+
+    # Bước 5: Nhập số ngày dự báo
+    forecast_days = st.number_input('Nhập số ngày bạn muốn dự báo', min_value=1, max_value=30, value=7)
+
+    # Bước 6: Dự báo giá sản phẩm
+    forecast = model_fit.forecast(steps=forecast_days)
+    forecast_dates = pd.date_range(start=price_data.index[-1] + timedelta(days=1), periods=forecast_days, freq='D')
+
+    # Hiển thị kết quả dự báo
+    forecast_df = pd.DataFrame({
+        'Ngày dự báo': forecast_dates,
+        'Giá dự báo (triệu đồng)': forecast
+    })
+    st.write(forecast_df)
+
+    # Bước 7: Vẽ đồ thị kết quả
+    plt.figure(figsize=(10, 6))
+
+    # Vẽ giá thực tế
+    plt.plot(price_data.index, price_data['price_after_voucher'], label='Giá thực tế (triệu đồng)', color='blue')
+
+    # Vẽ giá dự báo
+    plt.plot(forecast_dates, forecast, label='Giá dự báo (triệu đồng)', color='red', linestyle='--')
+
+    # Thêm nhãn và tiêu đề
+    plt.title(f'Dự báo giá sản phẩm: {selected_product}', fontsize=16)
+    plt.xlabel('Ngày', fontsize=14)
+    plt.ylabel('Giá (triệu đồng)', fontsize=14)
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+
+    # Hiển thị đồ thị trên Streamlit
+    st.pyplot(plt)
+
+elif page == "Linear  Regression":
+
+# Bước 1: Tải dữ liệu sản phẩm
+    df_clean = pd.read_csv('D:/Source_project/ETL_Pipeline_Tiki/output.csv')  # Đường dẫn tới file CSV
+    df_clean['date'] = pd.to_datetime(df_clean['date'])
+    df_clean.sort_values('date', inplace=True)
+
+    # Bước 2: Giao diện người dùng
+    st.title('Dự báo Doanh thu bán theo ngày (đơn vị: triệu đồng)')
+
+    # Lựa chọn sản phẩm từ dữ liệu
+    product_choices = df_clean['product_name'].unique()  # Giả sử cột 'product_name' chứa tên sản phẩm
+    selected_product = st.selectbox('Chọn sản phẩm', product_choices)
+
+    # Bước 3: Lọc dữ liệu của sản phẩm đã chọn
+    product_data = df_clean[df_clean['product_name'] == selected_product]
+
+    # Hiển thị thông tin sản phẩm
+    st.write(f"Thông tin sản phẩm: {selected_product}")
+    st.write(product_data.tail())
+
+    # Bước 4: Sử dụng dữ liệu `quantity_sold_by_day` làm doanh thu bán theo ngày
+    revenue_data = product_data[['date', 'quantity_sold_by_day']]
+    revenue_data.set_index('date', inplace=True)
+
+    # Chuyển đổi ngày thành số thứ tự (tính từ ngày đầu tiên)
+    revenue_data['day_number'] = (revenue_data.index - revenue_data.index.min()).days
+
+    # Tạo mô hình Linear Regression
+    X = revenue_data[['day_number']]  # Các ngày dưới dạng số thứ tự
+    y = revenue_data['quantity_sold_by_day']  # Doanh thu theo ngày (ở đây là quantity_sold_by_day)
+
+    # Xây dựng mô hình Linear Regression
+    model = LinearRegression()
+    model.fit(X, y)
+
+    # Bước 5: Nhập số ngày dự báo
+    forecast_days = st.number_input('Nhập số ngày bạn muốn dự báo', min_value=1, max_value=30, value=7)
+
+    # Bước 6: Dự báo doanh thu bán theo ngày
+    forecast_day_numbers = np.array(range(len(revenue_data), len(revenue_data) + forecast_days)).reshape(-1, 1)
+    forecast_revenue = model.predict(forecast_day_numbers)
+
+    # Tính toán ngày dự báo
+    forecast_dates = pd.date_range(start=revenue_data.index[-1] + timedelta(days=1), periods=forecast_days, freq='D')
+
+    # Hiển thị kết quả dự báo
+    forecast_df = pd.DataFrame({
+        'Ngày dự báo': forecast_dates,
+        'Doanh thu bán dự báo (triệu đồng)': forecast_revenue / 1_000_000  # Chuyển đổi thành triệu đồng
+    })
+    st.write(forecast_df)
+
+    # Bước 7: Vẽ đồ thị kết quả
+    plt.figure(figsize=(10, 6))
+
+    # Vẽ doanh thu bán theo ngày thực tế
+    plt.plot(revenue_data.index, revenue_data['quantity_sold_by_day'] / 1_000_000, label='Doanh thu thực tế (triệu đồng)', color='blue')
+
+    # Vẽ doanh thu bán theo ngày dự báo
+    plt.plot(forecast_dates, forecast_revenue / 1_000_000, label='Doanh thu dự báo (triệu đồng)', color='red', linestyle='--')
+
+    # Thêm nhãn và tiêu đề
+    plt.title(f'Dự báo doanh thu bán theo ngày: {selected_product}', fontsize=16)
+    plt.xlabel('Ngày', fontsize=14)
+    plt.ylabel('Doanh thu bán (triệu đồng)', fontsize=14)
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+
+    # Hiển thị đồ thị trên Streamlit
+    st.pyplot(plt)
