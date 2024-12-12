@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
+import pmdarima as pm  # Thư viện tự động chọn tham số ARIMA
+import seaborn as sns
 import requests
 import google.generativeai as genai
 from cachetools import cached, TTLCache
@@ -22,36 +24,6 @@ from datetime import timedelta
 from sklearn.linear_model import LinearRegression
 import webbrowser
 
-# path = 'D:\Source_project\ETL_Pipeline_Tiki\data_crawl'
-# files = os.listdir(path)
-# files_list = [os.path.join(path, file) for file in files if file.endswith('.csv')]
-# all_dataframes = []
-# for file in files_list:
-#         df = pd.read_csv(file)
-#         all_dataframes.append(df)
-# data = pd.concat(all_dataframes, ignore_index=True)
-# df = data[['id', 'product_name', 'brand_name', 'original_price', 'price_after_voucher', 'discount_rate', 'discount_price', 'quantity_sold', 'rating_average', 'review_count', 'warranty_info', 'return_policy', 'date']].copy()
-
-# df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
-# df = df.sort_values(by='date')
-# df['quantity_sold_by_day'] = df.groupby('id')['quantity_sold'].diff().fillna(0).astype(int)
-# df['quantity_sold_by_day'] = df['quantity_sold_by_day'].apply(lambda x: 0 if x < 0 else x)
-# df['sale_by_day'] = df['quantity_sold_by_day'] * df['price_after_voucher']
-# df = df[['id', 'product_name', 'brand_name', 'original_price', 'price_after_voucher', 'discount_rate', 'discount_price', 'rating_average', 'review_count', 'warranty_info', 'return_policy', 'date', 'quantity_sold', 'quantity_sold_by_day', 'sale_by_day']].copy()
-
-
-# Mã nhúng Power BI (iframe)
-# powerbi_embed_code = '''
-#    <iframe title="DashBoard-Tiki"
-#         width="100%" 
-#         height="100%" 
-#         src="https://app.powerbi.com/reportEmbed?reportId=8d3b50e1-ff3e-4449-b210-e688c20d0180&autoAuth=true&ctid=e7572e92-7aee-4713-a3c4-ba64888ad45f" 
-#         frameborder="0" 
-#         allowFullScreen="true" 
-#         style="display:block; width: 100%; height: 100%; border: none;">
-# </iframe>
-
-# '''
 # Thiết lập lựa chọn trang với radio button
 page = st.sidebar.selectbox("Lựa chọn hiển thị", ["Dashboard Tiki", "Random Forest Model","KNN","Linear  Regression","ARIMA","Chatbot"])
 
@@ -64,31 +36,35 @@ if page == "Dashboard Tiki":
         webbrowser.open("http://127.0.0.1:8000/dashboard")
         st.write("Redirecting to the dashboard...")
 elif page == "Random Forest Model":
-    # Trang 2: Hiển thị kết quả mô hình ML
-    st.write("### Kết quả đánh giá mô hình Random Forest")
-
-    # Đọc và xử lý dữ liệu
-    path = 'D:\Source_project\ETL_Pipeline_Tiki\data_crawl'
-    files = os.listdir(path)
-    files_list = [os.path.join(path, file) for file in files if file.endswith('.csv')]
-    all_dataframes = []
-    for file in files_list:
+    
+    # Hàm tải và tiền xử lý dữ liệu
+    @st.cache_data
+    def load_and_process_data(path):
+        files = os.listdir(path)
+        files_list = [os.path.join(path, file) for file in files if file.endswith('.csv')]
+        all_dataframes = []
+        for file in files_list:
             df = pd.read_csv(file)
             all_dataframes.append(df)
-    data = pd.concat(all_dataframes, ignore_index=True)
-    df = data[['id', 'product_name', 'brand_name', 'original_price', 'price_after_voucher', 'discount_rate', 'discount_price', 'quantity_sold', 'rating_average', 'review_count', 'warranty_info', 'return_policy', 'date']].copy()
+        data = pd.concat(all_dataframes, ignore_index=True)
 
-    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
-    df = df.sort_values(by='date')
-    df['quantity_sold_by_day'] = df.groupby('id')['quantity_sold'].diff().fillna(0).astype(int)
-    df['quantity_sold_by_day'] = df['quantity_sold_by_day'].apply(lambda x: 0 if x < 0 else x)
-    df['sale_by_day'] = df['quantity_sold_by_day'] * df['price_after_voucher']
-    df = df[['id', 'product_name', 'brand_name', 'original_price', 'price_after_voucher', 'discount_rate', 'discount_price', 'rating_average', 'review_count', 'warranty_info', 'return_policy', 'date', 'quantity_sold', 'quantity_sold_by_day', 'sale_by_day']].copy()
+        df = data[['id', 'product_name', 'brand_name', 'original_price', 'price_after_voucher',
+                'discount_rate', 'discount_price', 'quantity_sold', 'rating_average',
+                'review_count', 'warranty_info', 'return_policy', 'date']].copy()
+
+        df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+        df = df.sort_values(by='date')
+        df['quantity_sold_by_day'] = df.groupby('id')['quantity_sold'].diff().fillna(0).astype(int)
+        df['quantity_sold_by_day'] = df['quantity_sold_by_day'].apply(lambda x: 0 if x < 0 else x)
+        df['sale_by_day'] = df['quantity_sold_by_day'] * df['price_after_voucher']
+        df['is_hot'] = df['quantity_sold'].apply(lambda x: 1 if x > 1000 else 0)  # Ngưỡng sản phẩm "hot"
+
+        return df
 
 
-    original_data = df
-    threshold = 1000  # Ngưỡng để xác định sản phẩm "hot"
-    original_data['is_hot'] = original_data['quantity_sold'].apply(lambda x: 1 if x > threshold else 0)
+    # Load dữ liệu
+    data_path = 'D:/Source_project/ETL_Pipeline_Tiki/data_crawl'
+    original_data = load_and_process_data(data_path)
 
     # Chọn các cột đặc trưng và nhãn
     X_class = original_data[['price_after_voucher', 'discount_rate', 'rating_average', 'review_count', 'sale_by_day']]
@@ -97,70 +73,75 @@ elif page == "Random Forest Model":
     # Chia dữ liệu thành bộ huấn luyện và kiểm tra
     X_train_class, X_test_class, y_train_class, y_test_class = train_test_split(X_class, y_class, test_size=0.2, random_state=42)
 
-    # Khởi tạo mô hình Random Forest
-    rf_model = RandomForestClassifier(random_state=42, n_estimators=100)
+    # Huấn luyện mô hình Random Forest
+    @st.cache_data
+    def train_random_forest():
+        rf_model = RandomForestClassifier(random_state=42, n_estimators=100)
+        rf_model.fit(X_train_class, y_train_class)
+        return rf_model
 
-    # Huấn luyện mô hình
-    rf_model.fit(X_train_class, y_train_class)
+    rf_model = train_random_forest()
 
-    # Dự đoán trên bộ kiểm tra
-    y_pred_rf = rf_model.predict(X_test_class)
+    # Tạo Tabs
+    tabs = st.tabs(["Phân tích mô hình", "Dự đoán sản phẩm HOT", "Phân tích tương quan"])
 
-    # Tính toán độ chính xác và AUC-ROC
-    accuracy_rf = accuracy_score(y_test_class, y_pred_rf)
-    roc_auc_rf = roc_auc_score(y_test_class, y_pred_rf)
+    # Tab 1: Phân tích mô hình
+    with tabs[0]:
+        st.write("### Kết quả Đánh giá Mô hình Random Forest")
+        y_pred_rf = rf_model.predict(X_test_class)
+        accuracy_rf = accuracy_score(y_test_class, y_pred_rf)
+        roc_auc_rf = roc_auc_score(y_test_class, y_pred_rf)
+        st.write(f"Độ chính xác: {accuracy_rf:.2f}")
+        st.write(f"AUC-ROC: {roc_auc_rf:.2f}")
+
+        st.write("### Độ quan trọng của các đặc trưng")
+        feature_importance = rf_model.feature_importances_
+        importance_df = pd.DataFrame({'feature': X_class.columns, 'importance': feature_importance})
+        importance_df = importance_df.sort_values(by='importance', ascending=False)
+
+        plt.figure(figsize=(10, 6))
+        sns.barplot(x='importance', y='feature', data=importance_df, palette="Blues_d")
+        plt.title('Feature Importance', fontsize=16)
+        st.pyplot(plt)
+
+        # Hiển thị top 5 sản phẩm hot
+        st.write("### Top 5 Sản phẩm HOT nhất")
+        top_hot_products = original_data[original_data['is_hot'] == 1]
+
+        # Sắp xếp theo số lượng bán (quantity_sold) giảm dần và loại bỏ các tên sản phẩm trùng lặp
+        top_hot_products_sorted = (
+            top_hot_products
+            .sort_values(by='quantity_sold', ascending=False)
+            .drop_duplicates(subset='product_name')  # Loại bỏ các sản phẩm trùng tên
+            .head(5)  # Lấy top 5 sản phẩm
+        )
 
     # Hiển thị kết quả
-    st.write(f'Accuracy: {accuracy_rf: f}')
-    st.write(f'AUC-ROC: {roc_auc_rf: f}')
+        st.dataframe(top_hot_products_sorted[['product_name', 'brand_name', 'price_after_voucher', 'quantity_sold', 'rating_average']])
+        # Tab 2: Dự đoán sản phẩm HOT
+    with tabs[1]:
+        st.write("### Dự đoán sản phẩm mới")
+        input_data = {
+            'price_after_voucher': st.number_input("Giá sau voucher:", min_value=0.0, value=1000000.0, step=100000.0),
+            'discount_rate': st.slider("Tỷ lệ giảm giá:", min_value=0, max_value=100, value=10),
+            'rating_average': st.slider("Đánh giá trung bình:", min_value=0.0, max_value=5.0, value=4.5, step=0.1),
+            'review_count': st.number_input("Số lượt đánh giá:", min_value=0, value=100),
+            'sale_by_day': st.number_input("Doanh số bán theo ngày (VNĐ):", min_value=0.0, value=50000000.0)
+        }
+        input_df = pd.DataFrame([input_data])
+        prediction = rf_model.predict(input_df)[0]
+        st.write(f"Kết quả dự đoán: {'Sản phẩm HOT' if prediction == 1 else 'Sản phẩm không HOT'}")
 
-    # Lấy độ quan trọng của các đặc trưng từ mô hình Random Forest
-    feature_importance = rf_model.feature_importances_
+    # Tab 3: Phân tích tương quan
+    with tabs[2]:
+        st.write("### Phân tích tương quan")
+        corr_matrix = original_data[['price_after_voucher', 'discount_rate', 'rating_average', 'review_count', 'sale_by_day']].corr()
+        st.write("Ma trận tương quan:")
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', linewidths=0.5)
+        st.pyplot(plt)
 
-    # Tạo dataframe để dễ dàng vẽ biểu đồ
-    features = X_class.columns
-    importance_df = pd.DataFrame({'feature': features, 'importance': feature_importance})
 
-    # Sắp xếp theo độ quan trọng giảm dần
-    importance_df = importance_df.sort_values(by='importance', ascending=False)
-
-    # Tạo một biểu đồ với các cải tiến đẹp mắt
-    plt.figure(figsize=(12, 8))
-    bars = plt.barh(importance_df['feature'], importance_df['importance'], 
-                    color=plt.cm.Blues(importance_df['importance'] / max(importance_df['importance'])),
-                    edgecolor='grey')
-
-    # Thêm nhãn vào mỗi thanh
-    for bar in bars:
-        plt.text(bar.get_width() + 0.01, bar.get_y() + bar.get_height() / 2,
-                 f'{bar.get_width(): f}', va='center', ha='left', fontsize=12, color='black')
-
-    # Tinh chỉnh nhãn trục x và trục y
-    plt.xlabel('Importance', fontsize=14)
-    plt.title('Feature Importance of Random Forest Model', fontsize=16)
-    plt.gca().invert_yaxis()  # Đảo ngược trục y để đặc trưng quan trọng nhất lên đầu
-
-    # Tinh chỉnh font chữ và không gian
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
-    plt.tight_layout()
-
-    # Hiển thị biểu đồ trong Streamlit
-    st.pyplot(plt)
-
-    # Nhóm dữ liệu theo ID sản phẩm và tính tổng số lượng bán cho mỗi sản phẩm
-    top_hot_products_grouped = original_data.groupby(['id', 'product_name', 'brand_name', 'price_after_voucher']).agg({
-        'quantity_sold': 'sum',
-        'rating_average': 'mean',
-        'review_count': 'sum'
-    }).reset_index()
-
-    # Sắp xếp theo số lượng bán (quantity_sold) để lấy 5 sản phẩm "hot" nhất
-    top_hot_products_sorted_grouped = top_hot_products_grouped.sort_values(by='quantity_sold', ascending=False).head(5)
-
-    # Hiển thị chi tiết 5 sản phẩm hot nhất
-    st.write("### 5 Sản phẩm hot nhất:")
-    st.dataframe(top_hot_products_sorted_grouped[['id', 'product_name', 'brand_name', 'price_after_voucher', 'quantity_sold', 'rating_average', 'review_count']])
 
 elif page == "Chatbot":
  
@@ -309,12 +290,12 @@ elif page == "ARIMA":
    
 
     # Bước 1: Tải dữ liệu sản phẩm
-    df_clean = pd.read_csv('D:/Source_project/ETL_Pipeline_Tiki/output.csv')  # Đường dẫn tới file CSV
+    df_clean = pd.read_csv('D:/Source_project/ETL_Pipeline_Tiki/model.csv')  # Đường dẫn tới file CSV
     df_clean['date'] = pd.to_datetime(df_clean['date'])
     df_clean.sort_values('date', inplace=True)
 
     # Bước 2: Giao diện người dùng
-    st.title('Dự báo giá sản phẩm theo thời gian (đơn vị: triệu đồng)')
+    st.title('Dự báo giá, Doanh thu sản phẩm theo thời gian (đơn vị: triệu đồng)')
 
     # Lựa chọn sản phẩm từ dữ liệu
     product_choices = df_clean['product_name'].unique()  # Giả sử cột 'product_name' chứa tên sản phẩm
@@ -325,7 +306,7 @@ elif page == "ARIMA":
 
     # Hiển thị thông tin sản phẩm
     st.write(f"Thông tin sản phẩm: {selected_product}")
-    st.write(product_data.tail())
+    st.write(product_data.tail(1))
 
     # Bước 4: Tạo mô hình ARIMA cho giá sản phẩm
     price_data = product_data[['date', 'price_after_voucher']]
@@ -340,107 +321,239 @@ elif page == "ARIMA":
 
     # Bước 5: Nhập số ngày dự báo
     forecast_days = st.number_input('Nhập số ngày bạn muốn dự báo', min_value=1, max_value=30, value=7)
-
+    tab = st.tabs(["Dự báo giá sản phẩm", "Dự báo Doanh thu"])
     # Bước 6: Dự báo giá sản phẩm
-    forecast = model_fit.forecast(steps=forecast_days)
-    forecast_dates = pd.date_range(start=price_data.index[-1] + timedelta(days=1), periods=forecast_days, freq='D')
+    with tab[0]:
+        forecast = model_fit.forecast(steps=forecast_days)
+        forecast_dates = pd.date_range(start=price_data.index[-1] + timedelta(days=1), periods=forecast_days, freq='D')
 
-    # Hiển thị kết quả dự báo
-    forecast_df = pd.DataFrame({
-        'Ngày dự báo': forecast_dates,
-        'Giá dự báo (triệu đồng)': forecast
-    })
-    st.write(forecast_df)
+        # Hiển thị kết quả dự báo
+        forecast_df = pd.DataFrame({
+            'Ngày dự báo': forecast_dates,
+            'Giá dự báo (triệu đồng)': forecast
+        })
+        st.write(forecast_df)
 
-    # Bước 7: Vẽ đồ thị kết quả
-    plt.figure(figsize=(10, 6))
+        # Bước 7: Vẽ đồ thị kết quả
+        plt.figure(figsize=(10, 6))
 
-    # Vẽ giá thực tế
-    plt.plot(price_data.index, price_data['price_after_voucher'], label='Giá thực tế (triệu đồng)', color='blue')
+        # Vẽ giá thực tế
+        plt.plot(price_data.index, price_data['price_after_voucher'], label='Giá thực tế (triệu đồng)', color='blue')
 
-    # Vẽ giá dự báo
-    plt.plot(forecast_dates, forecast, label='Giá dự báo (triệu đồng)', color='red', linestyle='--')
+        # Vẽ giá dự báo
+        plt.plot(forecast_dates, forecast, label='Giá dự báo (triệu đồng)', color='red', linestyle='--')
 
-    # Thêm nhãn và tiêu đề
-    plt.title(f'Dự báo giá sản phẩm: {selected_product}', fontsize=16)
-    plt.xlabel('Ngày', fontsize=14)
-    plt.ylabel('Giá (triệu đồng)', fontsize=14)
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
+        # Thêm nhãn và tiêu đề
+        plt.title(f'Dự báo giá sản phẩm: {selected_product}', fontsize=16)
+        plt.xlabel('Ngày', fontsize=14)
+        plt.ylabel('Giá (triệu đồng)', fontsize=14)
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
 
-    # Hiển thị đồ thị trên Streamlit
-    st.pyplot(plt)
+        # Hiển thị đồ thị trên Streamlit
+        st.pyplot(plt)
+    with tab[1]:
+        # Tính toán doanh thu từ giá và số lượng bán
+        product_data['revenue'] = product_data['price_after_voucher'] * product_data['quantity_sold_by_day']
+
+        # Chuyển đổi doanh thu sang triệu đồng
+        product_data['revenue_million'] = product_data['revenue'] / 1_000_000
+
+        # Tạo series doanh thu
+        revenue_data = product_data[['date', 'revenue_million']]
+        revenue_data.set_index('date', inplace=True)
+
+        # Xây dựng mô hình ARIMA cho doanh thu
+        revenue_model = ARIMA(revenue_data['revenue_million'], order=(1, 1, 1))
+        revenue_model_fit = revenue_model.fit()
+
+        # Dự báo doanh thu
+        revenue_forecast = revenue_model_fit.forecast(steps=forecast_days)
+        revenue_forecast_dates = pd.date_range(start=revenue_data.index[-1] + timedelta(days=1), periods=forecast_days, freq='D')
+
+        # Hiển thị kết quả dự báo doanh thu
+        revenue_forecast_df = pd.DataFrame({
+            'Ngày dự báo': revenue_forecast_dates,
+            'Doanh thu dự báo (triệu đồng)': revenue_forecast
+        })
+        st.write("Dự báo Doanh thu:", revenue_forecast_df)
+
+        # Vẽ đồ thị doanh thu
+        plt.figure(figsize=(10, 6))
+
+        # Vẽ doanh thu thực tế
+        plt.plot(revenue_data.index, revenue_data['revenue_million'], 
+                label='Doanh thu thực tế (triệu đồng)', color='green')
+
+        # Vẽ doanh thu dự báo
+        plt.plot(revenue_forecast_dates, revenue_forecast, 
+                label='Doanh thu dự báo (triệu đồng)', color='red', linestyle='--')
+
+        # Thêm nhãn và tiêu đề
+        plt.title(f'Dự báo Doanh thu sản phẩm: {selected_product}', fontsize=16)
+        plt.xlabel('Ngày', fontsize=14)
+        plt.ylabel('Doanh thu (triệu đồng)', fontsize=14)
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+
+        # Hiển thị đồ thị doanh thu trên Streamlit
+        st.pyplot(plt)
+
+        # Thêm thống kê so sánh
+        st.subheader("Phân tích so sánh")
+
+        # Tính toán một số chỉ số thống kê
+        avg_price = product_data['price_after_voucher'].mean()
+        avg_revenue = product_data['revenue_million'].mean()
+        max_revenue = product_data['revenue_million'].max()
+        min_revenue = product_data['revenue_million'].min()
+
+        # Hiển thị các chỉ số
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Giá trung bình", f"{avg_price:.2f} tr", "Giá")
+        col2.metric("Doanh thu trung bình", f"{avg_revenue:.2f} tr", "Doanh thu")
+        col3.metric("Doanh thu cao nhất", f"{max_revenue:.2f} tr", "Cao nhất")
+        col4.metric("Doanh thu thấp nhất", f"{min_revenue:.2f} tr", "Thấp nhất")
+
 
 elif page == "Linear  Regression":
+        # Hàm dự báo giá
+    def forecast_price(df, forecast_days=7):
+        price_data = df[['date', 'price_after_voucher']]
+        price_data.set_index('date', inplace=True)
 
-# Bước 1: Tải dữ liệu sản phẩm
-    df_clean = pd.read_csv('D:/Source_project/ETL_Pipeline_Tiki/output.csv')  # Đường dẫn tới file CSV
-    df_clean['date'] = pd.to_datetime(df_clean['date'])
-    df_clean.sort_values('date', inplace=True)
+        if len(price_data) < 10:
+            st.warning("Không đủ dữ liệu để dự báo giá")
+            return None, None, None
 
-    # Bước 2: Giao diện người dùng
-    st.title('Dự báo Doanh thu bán theo ngày (đơn vị: triệu đồng)')
+        model = pm.auto_arima(
+            price_data['price_after_voucher'],
+            seasonal=True,
+            m=7,
+            suppress_warnings=True,
+            stepwise=True
+        )
 
-    # Lựa chọn sản phẩm từ dữ liệu
-    product_choices = df_clean['product_name'].unique()  # Giả sử cột 'product_name' chứa tên sản phẩm
-    selected_product = st.selectbox('Chọn sản phẩm', product_choices)
+        forecast, conf_int = model.predict(n_periods=forecast_days, return_conf_int=True)
 
-    # Bước 3: Lọc dữ liệu của sản phẩm đã chọn
-    product_data = df_clean[df_clean['product_name'] == selected_product]
+        forecast_dates = pd.date_range(
+            start=price_data.index[-1] + timedelta(days=1),
+            periods=forecast_days,
+            freq='D'
+        )
 
-    # Hiển thị thông tin sản phẩm
-    st.write(f"Thông tin sản phẩm: {selected_product}")
-    st.write(product_data.tail())
+        forecast_df = pd.DataFrame({
+            'Ngày dự báo': forecast_dates,
+            'Giá dự báo (triệu đồng)': forecast / 1_000_000,
+            'Khoảng tin cậy dưới (triệu đồng)': conf_int[:, 0] / 1_000_000,
+            'Khoảng tin cậy trên (triệu đồng)': conf_int[:, 1] / 1_000_000
+        })
 
-    # Bước 4: Sử dụng dữ liệu `quantity_sold_by_day` làm doanh thu bán theo ngày
-    revenue_data = product_data[['date', 'quantity_sold_by_day']]
-    revenue_data.set_index('date', inplace=True)
+        return model, forecast_df, price_data
 
-    # Chuyển đổi ngày thành số thứ tự (tính từ ngày đầu tiên)
-    revenue_data['day_number'] = (revenue_data.index - revenue_data.index.min()).days
 
-    # Tạo mô hình Linear Regression
-    X = revenue_data[['day_number']]  # Các ngày dưới dạng số thứ tự
-    y = revenue_data['quantity_sold_by_day']  # Doanh thu theo ngày (ở đây là quantity_sold_by_day)
+    # Hàm dự báo doanh thu
+    def forecast_revenue(df, forecast_days=7):
+        revenue_data = df[['date', 'quantity_sold_by_day']]
+        revenue_data.set_index('date', inplace=True)
 
-    # Xây dựng mô hình Linear Regression
-    model = LinearRegression()
-    model.fit(X, y)
+        if len(revenue_data) < 10:
+            st.warning("Không đủ dữ liệu để dự báo doanh thu")
+            return None, None, None
 
-    # Bước 5: Nhập số ngày dự báo
-    forecast_days = st.number_input('Nhập số ngày bạn muốn dự báo', min_value=1, max_value=30, value=7)
+        model = pm.auto_arima(
+            revenue_data['quantity_sold_by_day'],
+            seasonal=True,
+            m=7,
+            suppress_warnings=True,
+            stepwise=True
+        )
 
-    # Bước 6: Dự báo doanh thu bán theo ngày
-    forecast_day_numbers = np.array(range(len(revenue_data), len(revenue_data) + forecast_days)).reshape(-1, 1)
-    forecast_revenue = model.predict(forecast_day_numbers)
+        forecast, conf_int = model.predict(n_periods=forecast_days, return_conf_int=True)
 
-    # Tính toán ngày dự báo
-    forecast_dates = pd.date_range(start=revenue_data.index[-1] + timedelta(days=1), periods=forecast_days, freq='D')
+        forecast_dates = pd.date_range(
+            start=revenue_data.index[-1] + timedelta(days=1),
+            periods=forecast_days,
+            freq='D'
+        )
 
-    # Hiển thị kết quả dự báo
-    forecast_df = pd.DataFrame({
-        'Ngày dự báo': forecast_dates,
-        'Doanh thu bán dự báo (triệu đồng)': forecast_revenue / 1_000_000  # Chuyển đổi thành triệu đồng
-    })
-    st.write(forecast_df)
+        forecast_df = pd.DataFrame({
+            'Ngày dự báo': forecast_dates,
+            'Doanh thu dự báo (triệu đồng)': forecast / 1_000_000,
+            'Khoảng tin cậy dưới (triệu đồng)': conf_int[:, 0] / 1_000_000,
+            'Khoảng tin cậy trên (triệu đồng)': conf_int[:, 1] / 1_000_000
+        })
 
-    # Bước 7: Vẽ đồ thị kết quả
-    plt.figure(figsize=(10, 6))
+        return model, forecast_df, revenue_data
 
-    # Vẽ doanh thu bán theo ngày thực tế
-    plt.plot(revenue_data.index, revenue_data['quantity_sold_by_day'] / 1_000_000, label='Doanh thu thực tế (triệu đồng)', color='blue')
 
-    # Vẽ doanh thu bán theo ngày dự báo
-    plt.plot(forecast_dates, forecast_revenue / 1_000_000, label='Doanh thu dự báo (triệu đồng)', color='red', linestyle='--')
+    # Hàm vẽ biểu đồ
+    def visualize_forecast(data, forecast_df, label, y_label):
+        plt.figure(figsize=(12, 6))
 
-    # Thêm nhãn và tiêu đề
-    plt.title(f'Dự báo doanh thu bán theo ngày: {selected_product}', fontsize=16)
-    plt.xlabel('Ngày', fontsize=14)
-    plt.ylabel('Doanh thu bán (triệu đồng)', fontsize=14)
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
+        # Vẽ dữ liệu thực tế
+        plt.plot(data.index, data.iloc[:, 0] / 1_000_000, label=f'{label} thực tế (triệu đồng)', color='blue')
 
-    # Hiển thị đồ thị trên Streamlit
-    st.pyplot(plt)
+        # Vẽ dữ liệu dự báo
+        plt.plot(forecast_df['Ngày dự báo'], forecast_df.iloc[:, 1], label=f'{label} dự báo (triệu đồng)', color='red', linestyle='--')
+
+        # Vẽ khoảng tin cậy
+        plt.fill_between(forecast_df['Ngày dự báo'], forecast_df.iloc[:, 2], forecast_df.iloc[:, 3], color='pink', alpha=0.3, label='Khoảng tin cậy 95%')
+
+        plt.title(f'Dự báo {label}', fontsize=16)
+        plt.xlabel('Ngày', fontsize=14)
+        plt.ylabel(y_label, fontsize=14)
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+
+        return plt
+
+
+    # Hàm chính
+    def main():
+        # Tải dữ liệu
+        df_clean = pd.read_csv('D:/Source_project/ETL_Pipeline_Tiki/model.csv')
+        df_clean['date'] = pd.to_datetime(df_clean['date'])
+        df_clean.sort_values('date', inplace=True)
+
+        # Tiêu đề
+        st.title('Dự báo Doanh thu và Giá bán sản phẩm (triệu đồng)')
+
+        # Chọn sản phẩm
+        product_choices = df_clean['product_name'].unique()
+        selected_product = st.selectbox('Chọn sản phẩm', product_choices)
+
+        # Lọc dữ liệu cho sản phẩm được chọn
+        product_data = df_clean[df_clean['product_name'] == selected_product]
+
+        # Số ngày dự báo
+        forecast_days = st.number_input('Nhập số ngày dự báo', min_value=1, max_value=30, value=7)
+
+        # Tạo tabs cho dự báo
+        tab1, tab2 = st.tabs(["Dự báo Doanh thu", "Dự báo Giá bán"])
+
+        with tab1:
+            # Dự báo doanh thu
+            revenue_model, revenue_forecast_df, revenue_data = forecast_revenue(product_data, forecast_days)
+            if revenue_forecast_df is not None:
+                st.write("Dự báo Doanh thu:", revenue_forecast_df)
+
+                plt_revenue = visualize_forecast(revenue_data, revenue_forecast_df, 'Doanh thu', 'Doanh thu (triệu đồng)')
+                st.pyplot(plt_revenue)
+
+        with tab2:
+            # Dự báo giá bán
+            price_model, price_forecast_df, price_data = forecast_price(product_data, forecast_days)
+            if price_forecast_df is not None:
+                st.write("Dự báo Giá bán:", price_forecast_df)
+
+                plt_price = visualize_forecast(price_data, price_forecast_df, 'Giá bán', 'Giá bán (triệu đồng)')
+                st.pyplot(plt_price)
+
+
+    # Chạy ứng dụng
+    if __name__ == "__main__":
+        main()
