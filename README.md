@@ -7,16 +7,13 @@ then transferred to PowerBI for visualization and to Streamlit to deploy Machine
 ## 🔦 About Project
 <img src='img/pipeline.jpg' style="width: 100%;">
 
-- **Data Source**: This project uses two main `data sources`: [Yahoo Finance API](https://finance.yahoo.com/) and [Finnhub Stock API](https://finnhub.io/)
-   - `Yahoo Finance API`: Data is collected from `Yahoo Finance's API` using the `yfinance` library, collected in `real time` with an interval between data points of `1 minute`, collected data includes indicators such as `Open`, `Volume`, `Close`, `Datetime`,...
-   - `Finnhub Stock API`: Data is collected from `Finnhub's API` in `real time`, collected data includes `transaction` indicators such as `v (volume)`, `p (last price)`, `t (time)`,...
- - **Extract Data**: After being collected, data will be written to `Kafka (Kafka Producer)` with different `topics` for each different `data source`.
- - **Transform Data**: After data is sent to `Kafka Topic`, it will be read and retrieved using `Spark Streaming (Kafka Consumer)` and performed `real-time processing`. `Spark` is set up with `3 worker nodes`, applying `Spark's` distributed nature in large data processing.
- - **Load Data**: At the same time, when the data is processed, it will be loaded directly into the `Cassandra` Database using `spark`.
- - **Serving**: Provide detailed insights, create `financial reports` with `Power BI`, and `analyze` investment performance to guide strategic decision-making and optimize portfolio management.
+- **Data Source**: This project uses one main `data sources`: [Tiki  API]
+   - `Tiki API`: Data is collected from `Tiki API` using the `request` library, collected in `batch time` with an interval between data points of `1 day`, collected data includes indicators such as `Price`, `Rating`, `Quantity Sold`, `Datetime`,...
+ - **Stogaring**: After being collected, data will be written to `MinIO/S3` with different `topics` for each different `data source`.
+ - **ETL Data**: After data is sent to `MinIO/S3`, it will be read and retrieved using `Python`  to process , perform `ETL` from `MinIO/S3` to `Data Warehouse(Postgres)`  
+ - **Visualize and deploy Data**: At the same time, when the data is processed, it will be loaded directly into the `PowerBI` to perform analyst, other source perform trainning model and deploy to the website application by `Streamlit`.
+
  - **package and orchestration**: Components are packaged using `Docker` and orchestrated using `Apache Airflow`.
-
-
 
 ## 📦 Technologies
 - 'Python'
