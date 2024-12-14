@@ -28,13 +28,14 @@ import webbrowser
 page = st.sidebar.selectbox("Lựa chọn hiển thị", ["Dashboard Tiki", "Random Forest Model","KNN","Linear  Regression","ARIMA","Chatbot"])
 
 FASTAPI_URL = "http://127.0.0.1:8000/dashboard"
-response = requests.get(FASTAPI_URL)
 # Điều hướng tới trang Dashboard nếu chọn "Dashboard Tiki"
 if page == "Dashboard Tiki":
-    if response.status_code == 200:
-    # Hiển thị nội dung HTML trong Streamlit
-        webbrowser.open("http://127.0.0.1:8000/dashboard")
-        st.write("Redirecting to the dashboard...")
+    if st.button("Show Dashboard Tiki"):
+        response = requests.get(FASTAPI_URL)
+        if response.status_code == 200:
+        # Hiển thị nội dung HTML trong Streamlit
+            webbrowser.open("http://127.0.0.1:8000/dashboard")
+            st.write("Redirecting to the dashboard...")
 elif page == "Random Forest Model":
     
     # Hàm tải và tiền xử lý dữ liệu
