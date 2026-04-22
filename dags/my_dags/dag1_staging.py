@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 from datetime import datetime
 from scripts.crawl_product_data import crawl
-from scripts.util_minio import MinioHandler
+from dags.scripts.utils_minio import MinioHandler
 from scripts.config import bucket_name,output_dir,output_file,file_dir
 import os
 with DAG(
